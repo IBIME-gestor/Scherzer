@@ -1,0 +1,124 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function usuarioActual() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function tieneRol(rol) {
+      return estaAutenticado() && usuarioActual().rol == rol;
+    }
+
+    function esSuperadmin() { return tieneRol('superadmin'); }
+    function esDirector() { return tieneRol('director'); }     // Vector 1
+    function esDocente() { return tieneRol('docente'); }       // Vector 2
+    function esPadre() { return tieneRol('padre'); }           // Vector 3
+    function esOmega() { return tieneRol('omega'); }           // Vector 4
+
+    // Control global: Superadmin y Omega supervisan todo.
+    function esControl() { return esSuperadmin() || esOmega(); }
+
+    // --- usuarios (los 5 roles) ---
+    match /usuarios/{uid} {
+      allow read: if estaAutenticado();
+      allow create: if esSuperadmin();
+      allow update: if esSuperadmin() || request.auth.uid == uid;
+      allow delete: if esSuperadmin();
+    }
+
+    // --- alumnos ---
+    match /alumnos/{alumnoId} {
+      allow read: if estaAutenticado() && (
+        esControl() || esDirector() || esDocente() ||
+        (esPadre() && request.auth.uid in resource.data.padreIds)
+      );
+      allow create: if esControl() || esDirector();
+      allow update: if esControl() || esDirector() || esDocente();
+      allow delete: if esControl();
+    }
+
+    // --- grupos ---
+    match /grupos/{grupoId} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+
+    // --- FORMATO E1: actividades fundamentales por alumno ---
+    match /progresoE1/{alumnoId}/actividades/{clave} {
+      allow read: if estaAutenticado();
+      allow create: if esControl() || esDirector();
+      allow update: if esControl() || esDirector() || esDocente();
+      allow delete: if esControl();
+    }
+
+    // --- FORMATO E2: metas de los libros SEP por grupo ---
+    match /progresoE2/{grupoId}/metas/{codigo} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector() || esDocente();
+    }
+
+    // --- FORMATO E3/E4: conceptualizaciones del Núcleo por alumno ---
+    match /progresoE3/{alumnoId}/conceptos/{clave} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector() || esDocente();
+    }
+    match /progresoE4/{alumnoId}/conceptos/{clave} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector() || esDocente();
+    }
+
+    // --- FORMATO E5/E6: control de las 3 actividades (padres/profesores) ---
+    match /controlPadres/{alumnoId} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+    match /controlProfesores/{docenteId} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+
+    // --- FORMATO E7: exámenes bimestrales por grupo ---
+    match /examenesBimestrales/{grupoId}/bimestres/{numero} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+
+    // --- FORMATO E8: reporte de videos de fundamentos por grupo ---
+    match /reporteVideos/{grupoId}/semanas/{semana} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+
+    // --- FORMATO E9: plan semanal del Director Pedagógico ---
+    match /planSemanal/{directivoId}/semanas/{semanaId} {
+      allow read: if estaAutenticado() && (esControl() || request.auth.uid == directivoId);
+      allow write: if esControl() || request.auth.uid == directivoId;
+    }
+
+    // --- Capacitación 14/20/20 del propio Director ---
+    match /capacitacionDirectores/{directivoId}/actividades/{clave} {
+      allow read: if estaAutenticado();
+      allow create: if esControl() || request.auth.uid == directivoId;
+      // DP lo marca el propio director; VC lo confirma Control (Omega/Superadmin)
+      allow update: if esControl() || request.auth.uid == directivoId;
+      allow delete: if esControl();
+    }
+
+    // --- vinculaciones entre los vectores ---
+    match /vinculaciones/{id} {
+      allow read: if estaAutenticado();
+      allow write: if esControl() || esDirector();
+    }
+
+    // --- contadores internos usados por las Cloud Functions ---
+    match /contadores/{rol} {
+      allow read, write: if false; // solo accesible desde Cloud Functions (Admin SDK)
+    }
+  }
+}
