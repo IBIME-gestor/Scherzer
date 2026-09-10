@@ -1,0 +1,64 @@
+name: Deploy Plataforma Scherzer a Firebase
+
+# Se ejecuta 100% en los servidores de GitHub — no requiere nada instalado
+# en tu computadora. Cada push a main compila la app y despliega TODO
+# (Hosting + Reglas de Firestore + Reglas de Storage + Cloud Functions).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # también puedes dispararlo a mano desde la pestaña "Actions"
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ---------- Compilar la app web (React) ----------
+      - name: Instalar dependencias de la app web
+        working-directory: web
+        run: npm install
+
+      - name: Compilar la app web
+        working-directory: web
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: npm run build
+
+      # ---------- Compilar las Cloud Functions ----------
+      - name: Instalar dependencias de Functions
+        working-directory: functions
+        run: npm install
+
+      - name: Compilar Functions
+        working-directory: functions
+        run: npm run build
+
+      # ---------- Autenticarse en Firebase con la cuenta de servicio ----------
+      - name: Guardar credenciales de la cuenta de servicio
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$HOME/firebase-service-account.json"
+
+      # ---------- Desplegar TODO a Firebase ----------
+      - name: Deploy a Firebase (Hosting + Firestore + Storage + Functions)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /home/runner/firebase-service-account.json
+        run: |
+          npx firebase-tools@13 deploy \
+            --only hosting,firestore:rules,firestore:indexes,storage:rules,functions \
+            --project ${{ secrets.FIREBASE_PROJECT_ID }} \
+            --non-interactive
+
+      - name: Borrar credenciales temporales
+        if: always()
+        run: rm -f "$HOME/firebase-service-account.json"
