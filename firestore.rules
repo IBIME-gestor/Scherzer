@@ -116,9 +116,11 @@ service cloud.firestore {
       allow write: if esControl() || esDirector();
     }
 
-    // --- contadores internos usados por las Cloud Functions ---
+    // --- contadores internos para folios consecutivos de matrícula ---
+    // (antes solo los usaba una Cloud Function con Admin SDK; ahora, sin
+    // plan Blaze, la alta de usuarios se hace desde el cliente)
     match /contadores/{rol} {
-      allow read, write: if false; // solo accesible desde Cloud Functions (Admin SDK)
+      allow read, write: if esSuperadmin();
     }
   }
 }
