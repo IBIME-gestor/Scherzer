@@ -13,17 +13,30 @@ interface ChecklistE1Props {
   progreso: ProgresoActividadE1[]
   editable: boolean
   onCambiar: (clave: string, ronda: RondaDominio) => void
+  /** Marca varias actividades a la vez (revisión rápida grupal). */
+  onCambiarVarias?: (claves: string[], ronda: RondaDominio) => void
 }
 
-export function ChecklistE1({ progreso, editable, onCambiar }: ChecklistE1Props) {
+export function ChecklistE1({ progreso, editable, onCambiar, onCambiarVarias }: ChecklistE1Props) {
   const promedio = progreso.length
     ? Math.round(progreso.reduce((acc, p) => acc + PORCENTAJE[p.ronda], 0) / progreso.length)
     : 0
 
+  const marcarTodas = (ronda: RondaDominio) => {
+    if (onCambiarVarias) {
+      onCambiarVarias(
+        progreso.map((p) => p.clave),
+        ronda,
+      )
+    } else {
+      progreso.forEach((p) => onCambiar(p.clave, ronda))
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-black/5 bg-white p-4">
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium text-scherzer-negro">Avance promedio — Formato E1</span>
           <span className="font-mono text-black/50">{promedio}%</span>
         </div>
@@ -34,6 +47,20 @@ export function ChecklistE1({ progreso, editable, onCambiar }: ChecklistE1Props)
           Se colorea la mitad cuando se le da, lo entiende y muestra que lo domina; un cuarto más en la
           segunda verificación y el cuarto final al completar la tercera verificación.
         </p>
+        {editable && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3">
+            <span className="self-center text-xs text-black/40">Marcar todas:</span>
+            {([0, 1, 2, 3] as RondaDominio[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => marcarTodas(r)}
+                className="rounded-md border border-black/15 bg-scherzer-gris px-2.5 py-1 text-xs font-semibold text-black/60 hover:bg-black/10"
+              >
+                {PORCENTAJE[r]}%
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="divide-y divide-black/5 overflow-hidden rounded-xl border border-black/5 bg-white">
