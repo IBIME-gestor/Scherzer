@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Layout } from '../../components/Layout'
 import { PerfilCard } from '../../components/PerfilCard'
+import { CargaExcelAlumnos } from '../../components/CargaExcelAlumnos'
 import { useAuth } from '../../contexts/AuthContext'
 import { crearAlumno, obtenerAlumnosPorDirectivo } from '../../services/firestore'
 import { generarMatriculaAlumno } from '../../utils/matriculaVector1'
@@ -29,17 +30,23 @@ export function Alumnos() {
 
   return (
     <Layout titulo="Formato E1 · E3 · E4 — Alumnos bajo tu revisión">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-sm text-black/50">
           Numeración y clasificación de cada alumno para el control de avance individual.
         </p>
         <button
           onClick={() => setMostrarAlta(true)}
-          className="rounded-lg bg-scherzer-rojo px-4 py-2 text-sm font-semibold text-white hover:bg-scherzer-rojoOscuro"
+          className="flex-shrink-0 rounded-lg bg-scherzer-rojo px-4 py-2 text-sm font-semibold text-white hover:bg-scherzer-rojoOscuro"
         >
           + Registrar alumno
         </button>
       </div>
+
+      {usuario && (
+        <div className="mb-6">
+          <CargaExcelAlumnos directivoId={usuario.uid} colegio={usuario.colegio} onTerminado={cargar} />
+        </div>
+      )}
 
       {cargando ? (
         <p className="text-sm text-black/40">Cargando alumnos…</p>
