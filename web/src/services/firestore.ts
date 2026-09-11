@@ -7,8 +7,9 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore'
-import { db } from '../firebase/config'
+import { db, crearUsuarioEnAuthSinPerderSesion } from '../firebase/config'
 import { CHECKLIST_SCHERZER } from '../data/scherzerChecklist'
 import { ACTIVIDADES_E1, nivelE1DesdeNivelYGrado } from '../data/actividadesE1'
 import { CATEGORIAS_NUCLEO, generarConceptosCategoria } from '../data/nucleoConceptos'
@@ -28,6 +29,7 @@ import type {
   ExamenBimestral,
   ReporteVideoFundamentos,
   PlanSemanal,
+  Rol,
 } from '../types'
 
 // Firestore permite máximo 500 operaciones por batch — sembramos por lotes.
@@ -317,3 +319,53 @@ export async function guardarPerfilUsuario(uid: string, datos: Partial<Usuario>)
 }
 
 export type { CategoriaNucleo }
+
+// =========================================================================
+// Alta de usuarios desde el cliente (sin Cloud Functions / sin plan Blaze)
+// =========================================================================
+
+const PREFIJOS_MATRICULA_PERSONAL: Record<Rol, string> = {
+  director: 'DP',
+  docente: 'DO',
+  padre: 'PF',
+  omega: 'OM',
+  superadmin: 'SA',
+}
+
+async function siguienteConsecutivoRol(rol: Rol): Promise<number> {
+  const ref = doc(db, 'contadores', rol)
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    const actual = snap.exists() ? (snap.data().ultimo as number) : 0
+    const siguiente = actual + 1
+    tx.set(ref, { ultimo: siguiente }, { merge: true })
+    return siguiente
+  })
+}
+
+export async function crearUsuarioDesdeCliente(datos: {
+  nombre: string
+  email: string
+  password: string
+  rol: Rol
+  telefono?: string
+  colegio: string
+}): Promise<{ uid: string; matricula: string }> {
+  const uid = await crearUsuarioEnAuthSinPerderSesion(datos.email, datos.password)
+  const consecutivo = await siguienteConsecutivoRol(datos.rol)
+  const anio = new Date().getFullYear()
+  const matricula = `IBIME-${PREFIJOS_MATRICULA_PERSONAL[datos.rol]}-${anio}-${String(consecutivo).padStart(4, '0')}`
+
+  await setDoc(doc(db, 'usuarios', uid), {
+    rol: datos.rol,
+    nombre: datos.nombre,
+    email: datos.email,
+    telefono: datos.telefono ?? '',
+    matricula,
+    colegio: datos.colegio,
+    activo: true,
+    creadoEn: new Date().toISOString(),
+  })
+
+  return { uid, matricula }
+}
