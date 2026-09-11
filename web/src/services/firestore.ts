@@ -132,6 +132,27 @@ export async function marcarRondaE1(
   })
 }
 
+/** Marca varias actividades E1 a la vez (revisión rápida grupal) en un solo batch. */
+export async function marcarRondaE1Multiple(
+  alumnoId: string,
+  claves: string[],
+  ronda: RondaDominio,
+  verificador: { uid: string; nombre: string },
+) {
+  const batch = writeBatch(db)
+  const fechaUltimaVerificacion = new Date().toISOString()
+  for (const clave of claves) {
+    const ref = doc(db, 'progresoE1', alumnoId, 'actividades', clave)
+    batch.update(ref, {
+      ronda,
+      fechaUltimaVerificacion,
+      verificadoPorUid: verificador.uid,
+      verificadoPorNombre: verificador.nombre,
+    })
+  }
+  await batch.commit()
+}
+
 export async function obtenerProgresoNucleo(
   alumnoId: string,
   formato: 'progresoE3' | 'progresoE4',
@@ -149,6 +170,23 @@ export async function marcarConceptoNucleo(
 ) {
   const ref = doc(db, formato, alumnoId, 'conceptos', clave)
   await updateDoc(ref, { [quien]: valor, fecha: new Date().toISOString() })
+}
+
+/** Marca varios conceptos del Núcleo (E3/E4) a la vez, en un solo batch. */
+export async function marcarConceptoNucleoMultiple(
+  formato: 'progresoE3' | 'progresoE4',
+  alumnoId: string,
+  claves: string[],
+  quien: 'profesorVerifico' | 'alumnoVerifico',
+  valor: boolean,
+) {
+  const batch = writeBatch(db)
+  const fecha = new Date().toISOString()
+  for (const clave of claves) {
+    const ref = doc(db, formato, alumnoId, 'conceptos', clave)
+    batch.update(ref, { [quien]: valor, fecha })
+  }
+  await batch.commit()
 }
 
 // =========================================================================
