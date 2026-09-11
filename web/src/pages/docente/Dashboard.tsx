@@ -3,7 +3,7 @@ import { Layout } from '../../components/Layout'
 import { PerfilCard } from '../../components/PerfilCard'
 import { ChecklistE1 } from '../../components/ChecklistE1'
 import { useAuth } from '../../contexts/AuthContext'
-import { marcarRondaE1, obtenerAlumnosPorDocente, obtenerProgresoE1 } from '../../services/firestore'
+import { marcarRondaE1, marcarRondaE1Multiple, obtenerAlumnosPorDocente, obtenerProgresoE1 } from '../../services/firestore'
 import type { Alumno, ProgresoActividadE1, RondaDominio } from '../../types'
 
 export function DashboardDocente() {
@@ -32,6 +32,13 @@ export function DashboardDocente() {
     await marcarRondaE1(seleccionado.id, clave, ronda, { uid: usuario.uid, nombre: usuario.nombre })
   }
 
+  const cambiarVarias = async (claves: string[], ronda: RondaDominio) => {
+    if (!seleccionado || !usuario) return
+    const set = new Set(claves)
+    setProgreso((prev) => prev.map((p) => (set.has(p.clave) ? { ...p, ronda } : p)))
+    await marcarRondaE1Multiple(seleccionado.id, claves, ronda, { uid: usuario.uid, nombre: usuario.nombre })
+  }
+
   return (
     <Layout titulo="Vector 2 — Mis alumnos">
       {seleccionado ? (
@@ -40,7 +47,7 @@ export function DashboardDocente() {
             ← Volver a la lista
           </button>
           <h2 className="mb-4 font-display text-lg font-semibold">{seleccionado.nombre}</h2>
-          <ChecklistE1 progreso={progreso} editable onCambiar={cambiar} />
+          <ChecklistE1 progreso={progreso} editable onCambiar={cambiar} onCambiarVarias={cambiarVarias} />
           <p className="mt-4 text-xs text-black/40">
             Registra aquí el avance de las Actividades Fundamentales (Formato E1) que trabajas con el alumno
             en forma grupal y personal. El Director Pedagógico da seguimiento a este mismo avance.
